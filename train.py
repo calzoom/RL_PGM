@@ -6,8 +6,8 @@ import random
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-import ipdb
 from tqdm import tqdm
+import timeit
 
 
 class TrainAgent(object):
@@ -180,80 +180,83 @@ class TrainAgent(object):
             chronic_records[i] = self.chronic_priority(cid, fw, 1)
 
         # training loop
-        with tqdm(total=nb_frame) as pbar:
-            old = self.agent.update_step
-            while self.agent.update_step < nb_frame:
-                if self.agent.update_step != old:
-                    old = self.agent.update_step
-                    pbar.update(1)
-                # sample training chronic
-                dist = torch.distributions.categorical.Categorical(
-                    logits=torch.Tensor(chronic_records)
-                )
-                record_idx = dist.sample().item()
-                chronic_id, ffw = train_chronics_ffw[record_idx]
-                self.env.set_id(chronic_id)  # setup a scenario
-                self.env.seed(seed)
-                obs = self.env.reset()
-                if ffw > 0:
-                    self.env.fast_forward_chronics(
-                        ffw * 288 - 3
-                    )  # 288 * (5 min) = 24 hours, fast forward this number of steps in the current chronic
-                    obs, *_ = self.env.step(self.env.action_space())
-                done = False
-                alive_frame = 0
-                total_reward = 0
-                train_reward = 0
+        old_update_step = self.agent.update_step
+        start_time = 0
+        while self.agent.update_step < nb_frame:
+            if self.agent.update_step != old_update_step:
+                start_time = timeit.default_timer()
+            # sample training chronic
+            dist = torch.distributions.categorical.Categorical(
+                logits=torch.Tensor(chronic_records)
+            )
+            record_idx = dist.sample().item()
+            chronic_id, ffw = train_chronics_ffw[record_idx]
+            self.env.set_id(chronic_id)  # setup a scenario
+            self.env.seed(seed)
+            obs = self.env.reset()
+            if ffw > 0:
+                self.env.fast_forward_chronics(
+                    ffw * 288 - 3
+                )  # 288 * (5 min) = 24 hours, fast forward this number of steps in the current chronic
+                obs, *_ = self.env.step(self.env.action_space())
+            done = False
+            alive_frame = 0
+            total_reward = 0
+            train_reward = 0
 
-                self.agent.reset(obs)
-                prev_act = self.agent.act(obs, None, None)
-                temp_memory = []
-                while not done:
-                    obs, reward, done, info = self.interaction(
-                        obs, prev_act, chronic_id, ffw, alive_frame
-                    )  # ! interact until died or reached 864 steps
-                    alive_frame, prev_act = info[1][:2]
-                    total_reward += reward
-                    train_reward += info[0][3]
-                    temp_memory.append(
-                        list(
-                            map(lambda x: x.cpu() if torch.is_tensor(x) else x, info[0])
-                        )
+            self.agent.reset(obs)
+            prev_act = self.agent.act(obs, None, None)
+            temp_memory = []
+            while not done:
+                obs, reward, done, info = self.interaction(
+                    obs, prev_act, chronic_id, ffw, alive_frame
+                )  # ! interact until died or reached 864 steps
+                alive_frame, prev_act = info[1][:2]
+                total_reward += reward
+                train_reward += info[0][3]
+                temp_memory.append(
+                    list(
+                        map(lambda x: x.cpu() if torch.is_tensor(x) else x, info[0])
                     )
-                    if len(temp_memory) == self.agent.k_step or done:  # ??
-                        for transition in self.multi_step_transition(temp_memory):
-                            self.agent.append_sample(
-                                *transition
-                            )  # final_state is state2
-                        temp_memory.clear()
+                )
+                if len(temp_memory) == self.agent.k_step or done:  # ??
+                    for transition in self.multi_step_transition(temp_memory):
+                        self.agent.append_sample(
+                            *transition
+                        )  # final_state is state2
+                    temp_memory.clear()
 
-                    if len(self.agent.memory) > self.agent.update_start:
-                        self.agent.update()  # training the agent happens
-                        if self.agent.update_step % test_step == 0:
-                            eval_iter = self.agent.update_step // test_step
-                            cache = self.agent.cache_stat()
-                            result, stats, scores, steps = self.test(
-                                valid_chronics, max_ffw
-                            )
-                            self.agent.load_cache_stat(cache)
-                            print(
-                                f"[{eval_iter:4d}] Valid: score {stats['score']} | step {stats['step']}"
-                            )
+                if len(self.agent.memory) > self.agent.update_start:
+                    self.agent.update()  # training the agent happens
+                    if self.agent.update_step % test_step == 0:
+                        eval_iter = self.agent.update_step // test_step
+                        cache = self.agent.cache_stat()
+                        result, stats, scores, steps = self.test(
+                            valid_chronics, max_ffw
+                        )
+                        self.agent.load_cache_stat(cache)
+                        print(
+                            f"[{eval_iter:4d}] Valid: score {stats['score']} | step {stats['step']}"
+                        )
 
-                            # log and save model
-                            with open(
-                                os.path.join(model_path, "score.csv"), "a", newline=""
-                            ) as cf:
-                                csv.writer(cf).writerow(scores)
-                            with open(
-                                os.path.join(model_path, "step.csv"), "a", newline=""
-                            ) as cf:
-                                csv.writer(cf).writerow(steps)
-                            if best_score < stats["score"]:
-                                best_score = stats["score"]
-                                self.agent.save_model(model_path, "best")
-                    if self.agent.update_step > nb_frame:
-                        break
+                        # log and save model
+                        with open(
+                            os.path.join(model_path, "score.csv"), "a", newline=""
+                        ) as cf:
+                            csv.writer(cf).writerow(scores)
+                        with open(
+                            os.path.join(model_path, "step.csv"), "a", newline=""
+                        ) as cf:
+                            csv.writer(cf).writerow(steps)
+                        if best_score < stats["score"]:
+                            best_score = stats["score"]
+                            self.agent.save_model(model_path, "best")
+                # Print how long each iteration takes
+                if self.agent.update_step != old_update_step:
+                    print(f"Interaction: {self.agent.update_step}\tTime: {timeit.default_timer() - start_time}")
+                    old_update_step = self.agent.update_step
+                if self.agent.update_step > nb_frame:
+                    break
 
             # update chronic sampling weight (same chronics don't show up again and again)
             chronic_records[record_idx] = self.chronic_priority(

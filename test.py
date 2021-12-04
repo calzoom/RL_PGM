@@ -14,7 +14,6 @@ from agent import Agent
 from train import TrainAgent
 import matplotlib.cbook
 import warnings
-import ipdb
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
@@ -208,7 +207,7 @@ if __name__ == "__main__":
     print("model name: ", model_name)
 
     OUTPUT_DIR = "./result"
-    DATA_DIR = "./data"
+    DATA_DIR = "/data/rkunani/smaac_data"
     output_result_dir = os.path.join(OUTPUT_DIR, model_name)
     model_path = os.path.join(output_result_dir, "model")
 
