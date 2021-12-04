@@ -13,7 +13,16 @@ import timeit
 
 class TrainAgent(object):
     def __init__(
-        self, agent, env, test_env, device, dn_json_path, dn_ffw, ep_infos, experiment
+        self,
+        agent,
+        env,
+        test_env,
+        device,
+        dn_json_path,
+        dn_ffw,
+        ep_infos,
+        experiment,
+        checkpoint,
     ):
         self.device = device
         self.agent = agent
@@ -23,6 +32,7 @@ class TrainAgent(object):
         self.dn_ffw = dn_ffw
         self.ep_infos = ep_infos
         self.experiment = experiment
+        self.checkpoint = checkpoint
 
     def save_model(self, path, name):
         self.agent.save_model(path, name)
@@ -224,6 +234,10 @@ class TrainAgent(object):
 
                 if len(self.agent.memory) > self.agent.update_start:
                     self.agent.update()  # training the agent happen
+                    if (
+                        self.agent.update_step % 10000 == 0
+                    ):  # save model weights every 10k steps
+                        self.agent.save_model(model_path, self.agent.update_step)
                     if self.agent.update_step % test_step == 0:
                         eval_iter = self.agent.update_step // test_step
                         cache = self.agent.cache_stat()

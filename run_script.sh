@@ -18,8 +18,8 @@
 #
 # Wall clock limit:
 #SBATCH --time=04:00:00
-#SBATCH -o slurm.%N.%j.out # STDOUT
-#SBATCH -e slurm.%N.%j.err # STDERR
+#SBATCH -o out/slurm.%N.%j.out # STDOUT
+#SBATCH -e out/slurm.%N.%j.err # STDERR
 ## Command(s) to run (example):
 export PYTHONUNBUFFERED=1
 conda activate maze_smaac

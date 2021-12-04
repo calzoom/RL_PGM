@@ -10,6 +10,7 @@ import torch
 import grid2op
 from lightsim2grid import LightSimBackend
 from grid2op.Reward import L2RPNSandBoxScore
+from torch.distributions.constraints import _Boolean
 from custom_reward import *
 from agent import Agent
 from train import TrainAgent
@@ -77,6 +78,8 @@ MAX_FFW = {"5": 5, "sand": 26, "wcci": 26}
 
 def cli():
     parser = ArgumentParser()
+    parser.add_argument("-ckpt", "--checkpoint", type=bool, default=True)
+    parser.add_argument("-data", "--datapath", type=str, default="./data")
     parser.add_argument("-s", "--seed", type=int, default=0)
     parser.add_argument(
         "-c", "--case", type=str, default="wcci", choices=["sand", "wcci", "5"]
@@ -208,7 +211,7 @@ if __name__ == "__main__":
     print("model name: ", model_name)
 
     OUTPUT_DIR = "./result"
-    DATA_DIR = "/data/rkunani/smaac_data"
+    DATA_DIR = args.datapath
     output_result_dir = os.path.join(OUTPUT_DIR, model_name)
     model_path = os.path.join(output_result_dir, "model")
 
@@ -281,7 +284,15 @@ if __name__ == "__main__":
     my_agent.load_mean_std(mean, std)
 
     trainer = TrainAgent(
-        my_agent, env, test_env, device, dn_json_path, dn_ffw, ep_infos, experiment
+        my_agent,
+        env,
+        test_env,
+        device,
+        dn_json_path,
+        dn_ffw,
+        ep_infos,
+        experiment,
+        args.checkpoint,
     )
 
     if not os.path.exists(output_result_dir):

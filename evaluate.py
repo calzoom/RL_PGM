@@ -81,6 +81,7 @@ def cli():
         "-c", "--case", type=str, default="wcci", choices=["sand", "wcci", "5"]
     )
     parser.add_argument("-gpu", "--gpuid", type=int, default=0)
+    parser.add_argument("-data", "--datapath", type=str, default="./data")
 
     parser.add_argument(
         "-hn",
@@ -179,7 +180,7 @@ if __name__ == "__main__":
     print("model_name: ", model_name)
 
     OUTPUT_DIR = "./result"
-    DATA_DIR = "/data/rkunani/smaac_data"
+    DATA_DIR = args.datapath
     output_result_dir = os.path.join(OUTPUT_DIR, model_name)
     model_path = os.path.join(output_result_dir, "model")
 
