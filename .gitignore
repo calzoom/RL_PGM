@@ -6,3 +6,14 @@ result/*
 
 data/l2rpn_case14_sandbox*
 data/l2rpn_wcci_2020
+
+**.out
+**.err
+out/*
+**.gz
+**.pdf
+.vscode/
+**.zip
+
+smaac_job.sh
+install_lightsim2grid.sh
