@@ -272,6 +272,7 @@ if __name__ == "__main__":
     print(env.parameters.__dict__)
 
     experiment = Experiment(project_name="285-fp", api_key=os.getenv("COMET_API_KEY"))
+    experiment.set_name(model_name)
 
     # specify agent
     my_agent = Agent(experiment, env, **vars(args))
