@@ -11,8 +11,9 @@ from grid2op.Agent import BaseAgent
 
 
 class Agent(BaseAgent):
-    def __init__(self, env, **kwargs):
+    def __init__(self, experiment, env, **kwargs):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.experiment = experiment
         self.obs_space = env.observation_space
         self.action_space = env.action_space
         super(Agent, self).__init__(env.action_space)
@@ -448,7 +449,12 @@ class Agent(BaseAgent):
         Q1_loss = F.mse_loss(predQ1, targets)
         Q2_loss = F.mse_loss(predQ2, targets)
 
+        self.experiment.log_metric("Q1_loss", Q1_loss.item(), step=self.update_step)
+        self.experiment.log_metric("Q2_loss", Q2_loss.item(), step=self.update_step)
+
         loss = Q1_loss + Q2_loss
+        self.experiment.log_metric("loss", loss.item(), step=self.update_step)
+
         self.Q.optimizer.zero_grad()
         self.emb.optimizer.zero_grad()
         loss.backward()
@@ -458,6 +464,7 @@ class Agent(BaseAgent):
         self.Q.eval()
         # https://spinningup.openai.com/en/latest/algorithms/sac.html
 
+        # actor is updated every `self.delay_steps`
         if self.update_step % self.delay_step == 0:
             # actor loss
             self.actor.train()
@@ -473,6 +480,10 @@ class Agent(BaseAgent):
                 self.log_alpha.exp() * log_pi
                 - self.Q.min_Q(states, critic_input, adj, order)
             ).mean()
+
+            self.experiment.log_metric(
+                "actor_loss", actor_loss.item(), step=self.update_step
+            )
 
             self.emb.optimizer.zero_grad()
             self.actor.optimizer.zero_grad()
@@ -492,12 +503,16 @@ class Agent(BaseAgent):
                 for tp, p in zip(self.temb.parameters(), self.emb.parameters()):
                     tp.data.copy_(self.tau * p + (1 - self.tau) * tp)
 
-            # alpha loss
+            # alpha loss - entropy regularization coefficient
             alpha_loss = (
                 self.log_alpha * (-log_pi.detach() - self.target_entropy).mean()
             )
+
             self.alpha_optim.zero_grad()
             alpha_loss.backward()
+            self.experiment.log_metric(
+                "alpha_loss", alpha_loss.item(), step=self.update_step
+            )
             self.alpha_optim.step()
         self.emb.eval()
 
