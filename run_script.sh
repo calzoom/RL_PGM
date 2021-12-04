@@ -24,4 +24,4 @@
 export PYTHONUNBUFFERED=1
 conda activate maze_smaac
 cd SMAAC
-python test.py -n=wcci_run -s=0 -c=wcci -bs 512
+python test.py -n=wcci_run -s=0 -c=wcci

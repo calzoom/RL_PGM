@@ -5,6 +5,7 @@ import random
 from datetime import datetime
 from argparse import ArgumentParser
 import numpy as np
+from comet_ml import Experiment
 import torch
 import grid2op
 from lightsim2grid import LightSimBackend
@@ -269,14 +270,17 @@ if __name__ == "__main__":
     chronic_num = len(test_chronics)
 
     print(env.parameters.__dict__)
+
+    experiment = Experiment(project_name="285-fp", api_key=os.getenv("COMET_API_KEY"))
+
     # specify agent
-    my_agent = Agent(env, **vars(args))
+    my_agent = Agent(experiment, env, **vars(args))
     mean = torch.load(os.path.join(env_path, "mean.pt"))
     std = torch.load(os.path.join(env_path, "std.pt"))
     my_agent.load_mean_std(mean, std)
 
     trainer = TrainAgent(
-        my_agent, env, test_env, device, dn_json_path, dn_ffw, ep_infos
+        my_agent, env, test_env, device, dn_json_path, dn_ffw, ep_infos, experiment
     )
 
     if not os.path.exists(output_result_dir):

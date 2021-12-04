@@ -4,6 +4,7 @@ import csv
 import copy
 import random
 import numpy as np
+from comet_ml import Experiment, experiment
 import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -11,7 +12,9 @@ import timeit
 
 
 class TrainAgent(object):
-    def __init__(self, agent, env, test_env, device, dn_json_path, dn_ffw, ep_infos):
+    def __init__(
+        self, agent, env, test_env, device, dn_json_path, dn_ffw, ep_infos, experiment
+    ):
         self.device = device
         self.agent = agent
         self.env = env
@@ -19,6 +22,7 @@ class TrainAgent(object):
         self.dn_json_path = dn_json_path
         self.dn_ffw = dn_ffw
         self.ep_infos = ep_infos
+        self.experiment = experiment
 
     def save_model(self, path, name):
         self.agent.save_model(path, name)
@@ -179,13 +183,9 @@ class TrainAgent(object):
             cid, fw = train_chronics_ffw[i]
             chronic_records[i] = self.chronic_priority(cid, fw, 1)
 
-        # training loop
-        old_update_step = self.agent.update_step
-        start_time = 0
         while self.agent.update_step < nb_frame:
-            if self.agent.update_step != old_update_step:
-                start_time = timeit.default_timer()
-            # sample training chronic
+            self.experiment.log_metric("agent_update_step", self.agent.update_step)
+
             dist = torch.distributions.categorical.Categorical(
                 logits=torch.Tensor(chronic_records)
             )
@@ -215,19 +215,15 @@ class TrainAgent(object):
                 total_reward += reward
                 train_reward += info[0][3]
                 temp_memory.append(
-                    list(
-                        map(lambda x: x.cpu() if torch.is_tensor(x) else x, info[0])
-                    )
+                    list(map(lambda x: x.cpu() if torch.is_tensor(x) else x, info[0]))
                 )
                 if len(temp_memory) == self.agent.k_step or done:  # ??
                     for transition in self.multi_step_transition(temp_memory):
-                        self.agent.append_sample(
-                            *transition
-                        )  # final_state is state2
+                        self.agent.append_sample(*transition)  # final_state is state2
                     temp_memory.clear()
 
                 if len(self.agent.memory) > self.agent.update_start:
-                    self.agent.update()  # training the agent happens
+                    self.agent.update()  # training the agent happen
                     if self.agent.update_step % test_step == 0:
                         eval_iter = self.agent.update_step // test_step
                         cache = self.agent.cache_stat()
@@ -238,6 +234,16 @@ class TrainAgent(object):
                         print(
                             f"[{eval_iter:4d}] Valid: score {stats['score']} | step {stats['step']}"
                         )
+
+                        with self.experiment.validate():
+                            self.experiment.log_metric(
+                                "l2rpn_score",
+                                stats["score"],
+                                step=self.agent.update_step,
+                            )
+                            self.experiment.log_metric(
+                                "best_score", best_score, step=self.agent.update_step
+                            )
 
                         # log and save model
                         with open(
@@ -251,10 +257,6 @@ class TrainAgent(object):
                         if best_score < stats["score"]:
                             best_score = stats["score"]
                             self.agent.save_model(model_path, "best")
-                # Print how long each iteration takes
-                if self.agent.update_step != old_update_step:
-                    print(f"Interaction: {self.agent.update_step}\tTime: {timeit.default_timer() - start_time}")
-                    old_update_step = self.agent.update_step
                 if self.agent.update_step > nb_frame:
                     break
 
