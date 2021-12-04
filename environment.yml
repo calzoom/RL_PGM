@@ -13,3 +13,4 @@ dependencies:
     - grid2op==0.9.4
     - gdown==3.13.0
     - maze-rl==0.1.7
+    - comet_ml
