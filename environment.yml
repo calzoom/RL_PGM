@@ -11,6 +11,7 @@ dependencies:
   - pip:
     - numba==0.53.1
     - grid2op==0.9.4
+    - lightsim2grid==0.5.3
     - gdown==3.13.0
     - maze-rl==0.1.7
     - comet_ml
