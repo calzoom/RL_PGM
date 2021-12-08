@@ -1,23 +1,28 @@
 import os
 import csv
 import json
+import sys
 import random
 from datetime import datetime
 from argparse import ArgumentParser
 import numpy as np
-from comet_ml import Experiment
 import torch
 import grid2op
 from lightsim2grid import LightSimBackend
 from grid2op.Reward import L2RPNSandBoxScore
-from torch.distributions.constraints import _Boolean
 from custom_reward import *
 from agent import Agent
+from kaist_agent.Kaist import Kaist
+
 from train import TrainAgent
 import matplotlib.cbook
 import warnings
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
+
+from simple_opponents.random_opponent import RandomOpponent, WeightedRandomOpponent
+from ppo.ppo import PPO
+from ppo.nnpytorch import FFN
 
 
 ENV_CASE = {
@@ -78,8 +83,6 @@ MAX_FFW = {"5": 5, "sand": 26, "wcci": 26}
 
 def cli():
     parser = ArgumentParser()
-    parser.add_argument("-ckpt", "--checkpoint", type=bool, default=True)
-    parser.add_argument("-data", "--datapath", type=str, default="./data")
     parser.add_argument("-s", "--seed", type=int, default=0)
     parser.add_argument(
         "-c", "--case", type=str, default="wcci", choices=["sand", "wcci", "5"]
@@ -117,6 +120,27 @@ def cli():
     )
     parser.add_argument(
         "-nh", "--n_history", type=int, default=6, help="length of frame stack"
+    )
+    parser.add_argument(
+        "-ad",
+        "--attack_duration",
+        type=int,
+        default=1,
+        help="length of opponent attack",
+    )
+    parser.add_argument(
+        "-ap",
+        "--attack_period",
+        type=int,
+        default=50,
+        help="frequency of opponent attack",
+    )
+    parser.add_argument(
+        "-ot",
+        "--opp_train_steps",
+        type=int,
+        default=0,
+        help="how many steps to train opponent",
     )
     parser.add_argument("-do", "--dropout", type=float, default=0.0)
     parser.add_argument(
@@ -211,7 +235,7 @@ if __name__ == "__main__":
     print("model name: ", model_name)
 
     OUTPUT_DIR = "./result"
-    DATA_DIR = args.datapath
+    DATA_DIR = "./data"
     output_result_dir = os.path.join(OUTPUT_DIR, model_name)
     model_path = os.path.join(output_result_dir, "model")
 
@@ -222,6 +246,7 @@ if __name__ == "__main__":
 
     env_name = ENV_CASE[args.case]
     env_path = os.path.join(DATA_DIR, env_name)
+    print()
     chronics_path = os.path.join(env_path, "chronics")
     train_chronics, valid_chronics, test_chronics = DATA_SPLIT[args.case]
     dn_json_path = os.path.join(env_path, "json")
@@ -244,7 +269,6 @@ if __name__ == "__main__":
         backend=LightSimBackend(),
         other_rewards={"loss": LossReward},
     )
-
     test_env = grid2op.make(
         env_path,
         test=True,
@@ -252,7 +276,6 @@ if __name__ == "__main__":
         backend=LightSimBackend(),
         other_rewards={"loss": LossReward},
     )
-
     env.deactivate_forecast()
     test_env.deactivate_forecast()
     env.seed(args.seed)
@@ -275,33 +298,85 @@ if __name__ == "__main__":
     chronic_num = len(test_chronics)
 
     print(env.parameters.__dict__)
-
-    experiment = Experiment(project_name="285-fp", api_key=os.getenv("COMET_API_KEY"))
-    experiment.set_name(model_name)
-
+    """
     # specify agent
-    my_agent = Agent(experiment, env, **vars(args))
-    mean = torch.load(os.path.join(env_path, "mean.pt"))
-    std = torch.load(os.path.join(env_path, "std.pt"))
-    my_agent.load_mean_std(mean, std)
+    agent_name = "kaist"
+    data_dir = os.path.join('kaist_agent/data')
+    with open(os.path.join(data_dir, 'param.json'), 'r', encoding='utf-8') as f:
+        param = json.load(f)
 
+    state_mean = torch.load(os.path.join(data_dir, 'mean.pt'), map_location=param['device']).cpu()
+    state_std = torch.load(os.path.join(data_dir, 'std.pt'), map_location=param['device']).cpu()
+    state_std = state_std.masked_fill(state_std<1e-5, 1.)
+    state_mean[0, sum(env.observation_space.shape[:20]):] = 0
+    state_std[0, sum(env.observation_space.shape[:20]):] = 1
+    agent = Kaist(env, **param)
+    agent.load_mean_std(state_mean, state_std)
+    agent.load_model(data_dir)
+    """
+    agent = Agent(env, **vars(args))
+    state_mean = torch.load(os.path.join(env_path, "mean.pt"))
+    state_std = torch.load(os.path.join(env_path, "std.pt"))
+    agent.load_mean_std(state_mean, state_std)
+    print("Loading agent...")
+    agent.load_model(
+        "result/sand_no_opp_2/model/", name="best"
+    )  # load acting agent controller itself
+    print("Done!")
+
+    SAND_LINES = ["1_2_2", "1_4_4", "2_3_5", "6_8_19", "8_13_11", "9_10_12"]
+    EASY_LINES = [
+        "10_11_11",
+        "12_16_20",
+        "16_17_22",
+        "16_18_23",
+        "16_21_27",
+        "16_21_28",
+        "16_33_48",
+        "14_35_53",
+        "9_16_18",
+        "9_16_19",
+    ]
+
+    hyperparameters = {
+        "timesteps_per_batch": 864,
+        "max_timesteps_per_episode": 864,
+        "gamma": 0.99,
+        "n_updates_per_iteration": 10,
+        "lr": 1e-4,
+        "clip": 0.15,
+        "lines_attacked": SAND_LINES,
+        "attack_duration": args.attack_duration,
+        "attack_period": args.attack_period,
+        "danger": 0.9,
+        "state_dim": 342,  # 342 for kaist-sand, 1062 for kaist-wcci
+    }
+
+    # opponent = RandomOpponent(env.observation_space, env.action_space,
+    #                       lines_to_attack=SAND_LINES, attack_period=args.attack_period,
+    #                       attack_duration=args.attack_duration)
+    opponent = PPO(
+        env=env,
+        agent=agent,
+        policy_class=FFN,
+        state_mean=state_mean,
+        state_std=state_std,
+        name="ppo",
+        **hyperparameters,
+    )
+    opponent.actor.load_state_dict(torch.load("./ppo_actor_sandbox.pth"))
+    # opponent = None
+    print(opponent)
     trainer = TrainAgent(
-        my_agent,
-        env,
-        test_env,
-        device,
-        dn_json_path,
-        dn_ffw,
-        ep_infos,
-        experiment,
-        args.checkpoint,
+        agent, opponent, env, test_env, device, dn_json_path, dn_ffw, ep_infos
     )
 
     if not os.path.exists(output_result_dir):
         os.makedirs(output_result_dir)
         os.makedirs(model_path)
         log_params(args, output_result_dir)
-
+    # print(args.opp_train_steps)
+    # print(args)
     trainer.train(
         args.seed,
         args.nb_frame,
@@ -311,6 +386,6 @@ if __name__ == "__main__":
         output_result_dir,
         model_path,
         MAX_FFW[args.case],
+        opp_train_steps=args.opp_train_steps,
     )
-
     trainer.agent.save_model(model_path, "last")
