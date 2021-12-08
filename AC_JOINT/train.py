@@ -10,7 +10,16 @@ from matplotlib import pyplot as plt
 
 class TrainAgent(object):
     def __init__(
-        self, agent, opp, env, test_env, device, dn_json_path, dn_ffw, ep_infos
+        self,
+        agent,
+        opp,
+        env,
+        test_env,
+        device,
+        dn_json_path,
+        dn_ffw,
+        ep_infos,
+        experiment,
     ):
         self.device = device
         self.agent = agent
@@ -20,6 +29,7 @@ class TrainAgent(object):
         self.dn_json_path = dn_json_path
         self.dn_ffw = dn_ffw
         self.ep_infos = ep_infos
+        self.experiment = experiment
 
     def save_model(self, path, name):
         self.agent.save_model(path, name)
@@ -203,6 +213,7 @@ class TrainAgent(object):
 
         # training loop
         while self.agent.update_step < nb_frame:
+            self.experiment.log_metric("agent_update_step", self.agent.update_step)
 
             # sample training chronic
             dist = torch.distributions.categorical.Categorical(
@@ -242,6 +253,10 @@ class TrainAgent(object):
                     temp_memory.clear()
                 if len(self.agent.memory) > self.agent.update_start:
                     self.agent.update()
+                    if (
+                        self.agent.update_step % 10000 == 0
+                    ):  # save model weights every 10k steps
+                        self.agent.save_model(model_path, self.agent.update_step)
                     if joint and self.agent.update_step % test_step == 0:
                         obs = self.env.reset()
                         if ffw > 0:
@@ -261,6 +276,16 @@ class TrainAgent(object):
                         print(
                             f"[{eval_iter:4d}] Valid: score {stats['score']} | step {stats['step']}"
                         )
+
+                        with self.experiment.validate():
+                            self.experiment.log_metric(
+                                "l2rpn_score",
+                                stats["score"],
+                                step=self.agent.update_step,
+                            )
+                            self.experiment.log_metric(
+                                "best_score", best_score, step=self.agent.update_step
+                            )
 
                         # log and save model
                         with open(

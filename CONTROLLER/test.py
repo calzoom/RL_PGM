@@ -294,8 +294,8 @@ if __name__ == "__main__":
         dn_json_path,
         dn_ffw,
         ep_infos,
-        experiment,
-        args.checkpoint,
+        experiment=experiment,
+        checkpoint=args.checkpoint,
     )
 
     if not os.path.exists(output_result_dir):

@@ -92,6 +92,8 @@ def cli():
         "-c", "--case", type=str, default="wcci", choices=["sand", "wcci", "5", "parl"]
     )
     parser.add_argument("-gpu", "--gpuid", type=int, default=0)
+    parser.add_argument("-data", "--datapath", type=str, default="./data")
+    parser.add_argument("-out", "--output", type=str, default="./result")
 
     parser.add_argument(
         "-hn",

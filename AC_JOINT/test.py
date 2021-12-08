@@ -6,13 +6,13 @@ import random
 from datetime import datetime
 from argparse import ArgumentParser
 import numpy as np
+from comet_ml import Experiment
 import torch
 import grid2op
 from lightsim2grid import LightSimBackend
 from grid2op.Reward import L2RPNSandBoxScore
 from custom_reward import *
 from agent import Agent
-from kaist_agent.Kaist import Kaist
 
 from train import TrainAgent
 import matplotlib.cbook
@@ -20,10 +20,8 @@ import warnings
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
-from simple_opponents.random_opponent import RandomOpponent, WeightedRandomOpponent
-from ppo.ppo import PPO
-from ppo.nnpytorch import FFN
-
+from ADVERSARY.ppo.ppo import PPO
+from ADVERSARY.ppo.nnpytorch import FFN
 
 ENV_CASE = {
     "5": "rte_case5_example",
@@ -84,9 +82,14 @@ MAX_FFW = {"5": 5, "sand": 26, "wcci": 26}
 def cli():
     parser = ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=0)
+    parser.add_argument("-data", "--datapath", type=str, default="./data")
+    parser.add_argument("-out", "--output", type=str, default="./result")
     parser.add_argument(
         "-c", "--case", type=str, default="wcci", choices=["sand", "wcci", "5"]
     )
+    parser.add_argument("-n", "--name", type=str, default="untitled")
+    parser.add_argument("--controller", type=str, default="./result/wcci_run_0/model/")
+    parser.add_argument("--c_suffix", type=str, default="last")
     parser.add_argument("-gpu", "--gpuid", type=int, default=0)
 
     parser.add_argument("-ml", "--memlen", type=int, default=50000)
@@ -181,7 +184,6 @@ def cli():
     parser.add_argument("-bs", "--batch_size", type=int, default=128)
     parser.add_argument("-lr", "--lr", type=float, default=5e-5)
     parser.add_argument("--gamma", type=float, default=0.995)
-    parser.add_argument("-n", "--name", type=str, default="untitled")
 
     args = parser.parse_args()
     args.actor_lr = args.critic_lr = args.embed_lr = args.alpha_lr = args.lr
@@ -234,8 +236,8 @@ if __name__ == "__main__":
     model_name = f"{args.name}_{args.seed}"
     print("model name: ", model_name)
 
-    OUTPUT_DIR = "./result"
-    DATA_DIR = "./data"
+    OUTPUT_DIR = args.output
+    DATA_DIR = args.datapath
     output_result_dir = os.path.join(OUTPUT_DIR, model_name)
     model_path = os.path.join(output_result_dir, "model")
 
@@ -314,13 +316,16 @@ if __name__ == "__main__":
     agent.load_mean_std(state_mean, state_std)
     agent.load_model(data_dir)
     """
-    agent = Agent(env, **vars(args))
+    experiment = Experiment(project_name="285-fp", api_key=os.getenv("COMET_API_KEY"))
+    experiment.set_name(model_name)
+
+    agent = Agent(experiment, env, **vars(args))
     state_mean = torch.load(os.path.join(env_path, "mean.pt"))
     state_std = torch.load(os.path.join(env_path, "std.pt"))
     agent.load_mean_std(state_mean, state_std)
-    print("Loading agent...")
+    print("Loading controller...")
     agent.load_model(
-        "result/sand_no_opp_2/model/", name="best"
+        args.controller, name=args.c_suffix
     )  # load acting agent controller itself
     print("Done!")
 
@@ -345,12 +350,26 @@ if __name__ == "__main__":
         "n_updates_per_iteration": 10,
         "lr": 1e-4,
         "clip": 0.15,
-        "lines_attacked": SAND_LINES,
+        "lines_attacked": EASY_LINES,
         "attack_duration": args.attack_duration,
         "attack_period": args.attack_period,
         "danger": 0.9,
-        "state_dim": 342,  # 342 for kaist-sand, 1062 for kaist-wcci
+        "state_dim": 1062,  # ! 342 for kaist-sand, 1062 for kaist-wcci
     }
+    if args.case == "sand":
+        hyperparameters = {
+            "timesteps_per_batch": 864,
+            "max_timesteps_per_episode": 864,
+            "gamma": 0.99,
+            "n_updates_per_iteration": 10,
+            "lr": 1e-4,
+            "clip": 0.15,
+            "lines_attacked": SAND_LINES,
+            "attack_duration": args.attack_duration,
+            "attack_period": args.attack_period,
+            "danger": 0.9,
+            "state_dim": 342,  # 342 for kaist-sand, 1062 for kaist-wcci
+        }
 
     # opponent = RandomOpponent(env.observation_space, env.action_space,
     #                       lines_to_attack=SAND_LINES, attack_period=args.attack_period,
@@ -364,11 +383,21 @@ if __name__ == "__main__":
         name="ppo",
         **hyperparameters,
     )
-    opponent.actor.load_state_dict(torch.load("./ppo_actor_sandbox.pth"))
+    opponent.actor.load_state_dict(
+        torch.load("./ADVERSARY/ppo_actor_kaist_easy.pth")
+    )  # ! hard coded for pre-trained adversary
     # opponent = None
     print(opponent)
     trainer = TrainAgent(
-        agent, opponent, env, test_env, device, dn_json_path, dn_ffw, ep_infos
+        agent,
+        opponent,
+        env,
+        test_env,
+        device,
+        dn_json_path,
+        dn_ffw,
+        ep_infos,
+        experiment=experiment,
     )
 
     if not os.path.exists(output_result_dir):
