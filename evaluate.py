@@ -225,13 +225,23 @@ if __name__ == "__main__":
     env.parameters.HARD_OVERFLOW_THRESHOLD = 200.0
     print(env.parameters.__dict__)
 
-    my_agent = Agent(env, **vars(args))
+    my_agent = Agent(env=env, experiment=None, **vars(args))
     mean = torch.load(os.path.join(env_path, "mean.pt"))
     std = torch.load(os.path.join(env_path, "std.pt"))
     my_agent.load_mean_std(mean, std)  # load the best policy
     my_agent.load_model(model_path, mode)  # load actor, Q/critic, and emb state dicts
 
-    trainer = TrainAgent(my_agent, env, env, device, dn_json_path, dn_ffw, ep_infos)
+    trainer = TrainAgent(
+        my_agent,
+        env,
+        env,
+        device,
+        dn_json_path,
+        dn_ffw,
+        ep_infos,
+        experiment=None,
+        checkpoint=None,
+    )
 
     if not os.path.exists(output_result_dir):
         os.makedirs(output_result_dir)
