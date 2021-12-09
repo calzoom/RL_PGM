@@ -1,6 +1,6 @@
 #!/bin/bash
 # Job name:
-#SBATCH --job-name=SMAAC
+#SBATCH --job-name=JOINT
 #
 # Account:
 #SBATCH -A m3691
@@ -17,11 +17,11 @@
 #SBATCH -G 1
 #
 # Wall clock limit:
-#SBATCH --time=04:00:00
+#SBATCH --time=24:00:00
 #SBATCH -o out/slurm.%N.%j.out # STDOUT
 #SBATCH -e out/slurm.%N.%j.err # STDERR
 ## Command(s) to run (example):
 export PYTHONUNBUFFERED=1
 conda activate maze_smaac
-cd SMAAC
-python test.py -n=wcci_run -s=0 -c=wcci
+cd fp
+python AC_JOINT/test.py -n=joint_wcci_run --controller=./result/wcci_run_0/model/ --c_suffix=last -s=0 -c=wcci
