@@ -5,6 +5,7 @@
 import sys
 import os
 import json
+from comet_ml import Experiment
 import torch
 import argparse
 
@@ -19,7 +20,7 @@ from grid2op.Reward import (
 )
 
 # from kaist_agent.Kaist import Kaist
-from SMAAC2.agent import Agent
+from CONTROLLER.agent import Agent
 
 from ppo.ppo import PPO
 from ppo.nnpytorch import FFN
@@ -40,8 +41,12 @@ def train(
     """
     print(f"Training", flush=True)
 
+    experiment = Experiment(project_name="285-fp", api_key=os.getenv("COMET_API_KEY"))
+    experiment.set_name("Adversary")
+
     # Create a model for PPO.
     model = PPO(
+        experiment=experiment,
         env=env,
         agent=agent,
         policy_class=FFN,
@@ -93,6 +98,13 @@ def get_args():
         "--critic_model", dest="critic_model", type=str, default=""
     )  # your critic model filename
 
+    parser.add_argument("-data", "--datapath", type=str, default="./data")
+    parser.add_argument(
+        "-c", "--case", type=str, default="wcci", choices=["sand", "wcci"]
+    )
+    parser.add_argument("--model_results", type=str, default="./result/wcci_run_0")
+    parser.add_argument("--c_suffix", type=str, default="last")
+
     args = parser.parse_args()
 
     return args
@@ -111,19 +123,21 @@ def main(args):
     # To see a list of hyperparameters, look in ppo.py at function _init_hyperparameters
 
     # Environment
+    DATA_DIR = args.datapath
+    case = {"wcci": "l2rpn_wcci_2020", "sand": "l2rpn_case14_sandbox"}
     backend = LightSimBackend()
-    env_name = os.path.join("../SMAAC/data", "l2rpn_wcci_2020")  # "l2rpn_wcci_2020"
+    env_name = os.path.join(args.datapath, case[args.case])
     env = grid2op.make(env_name, reward_class=CombinedScaledReward, backend=backend)
 
     # Agent
     agent_name = "kaist"
     # data_dir = os.path.join("kaist_agent/data")
-    data_dir = os.path.join("train/SMAAC2/result/trained_SMAAC_agent")
-    with open(os.path.join(data_dir, "param.json"), "r", encoding="utf-8") as f:
+    results_dir = args.model_results
+    with open(os.path.join(results_dir, "param.json"), "r", encoding="utf-8") as f:
         param = json.load(f)
     param["device"] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(param)
-    og_smac = "../SMAAC/data/l2rpn_wcci_2020"
+    og_smac = os.path.join(DATA_DIR, case[args.case])
     state_mean = torch.load(
         os.path.join(og_smac, "mean.pt"), map_location=param["device"]
     ).cpu()
@@ -133,10 +147,10 @@ def main(args):
     state_std = state_std.masked_fill(state_std < 1e-5, 1.0)
     state_mean[0, sum(env.observation_space.shape[:20]) :] = 0
     state_std[0, sum(env.observation_space.shape[:20]) :] = 1
-    agent = Agent(env, **param)
+    agent = Agent(experiment=None, env=env, **param)
     agent.load_mean_std(state_mean, state_std)
     agent.sim_trial = 0
-    agent.load_model("../SMAAC/result/example/model", name="best")
+    agent.load_model(os.path.join(args.model_results, "model/"), name=args.c_suffix)
 
     hyperparameters = {
         "timesteps_per_batch": 2048,
@@ -207,6 +221,7 @@ def main(args):
             "9_16_19",
         ],
         "attack_duration": 10,
+        "attack_period": 50,
         "danger": 0.9,
     }
 

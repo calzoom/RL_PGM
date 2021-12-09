@@ -4,9 +4,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from models import DoubleSoftQ, EncoderLayer, Actor
-from util import ReplayBuffer
-from converter import graphGoalConverter
+from CONTROLLER.models import DoubleSoftQ, EncoderLayer, Actor
+from CONTROLLER.util import ReplayBuffer
+from CONTROLLER.converter import graphGoalConverter
 from grid2op.Agent import BaseAgent
 
 

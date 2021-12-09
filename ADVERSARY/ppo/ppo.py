@@ -13,6 +13,7 @@ class PPO:
 
     def __init__(
         self,
+        experiment,
         env,
         agent,
         policy_class,
@@ -35,7 +36,7 @@ class PPO:
         # assert(type(env.observation_space) == gym.spaces.Box)
         # assert(type(env.action_space) == gym.spaces.Box)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+        self.experiment = experiment
         # Extract environment information
         self.env = env
         self.agent = agent
@@ -150,6 +151,13 @@ class PPO:
                 # performance function maximizes it.
                 actor_loss = (-torch.min(surr1, surr2)).mean()
                 critic_loss = nn.MSELoss()(V, batch_rtgs)
+
+                self.experiment.log_metric(
+                    "actor_loss", actor_loss.item(), step=self.logger["i_so_far"]
+                )
+                self.experiment.log_metric(
+                    "critic_loss", critic_loss.item(), step=self.logger["i_so_far"]
+                )
 
                 # Calculate gradients and perform backward propagation for actor network
                 self.actor_optim.zero_grad()
