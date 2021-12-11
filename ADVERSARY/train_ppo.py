@@ -27,7 +27,7 @@ from ppo.nnpytorch import FFN
 
 
 def train(
-    env, agent, state_mean, state_std, hyperparameters, actor_model, critic_model
+    env, agent, state_mean, state_std, hyperparameters, actor_model, critic_model, adv_name
 ):
     """
     Trains the model.
@@ -42,7 +42,7 @@ def train(
     print(f"Training", flush=True)
 
     experiment = Experiment(project_name="285-fp", api_key=os.getenv("COMET_API_KEY"))
-    experiment.set_name("Adversary")
+    experiment.set_name(adv_name)
 
     # Create a model for PPO.
     model = PPO(
@@ -52,6 +52,7 @@ def train(
         policy_class=FFN,
         state_mean=state_mean,
         state_std=state_std,
+        name=adv_name,
         **hyperparameters,
     )
 
@@ -102,8 +103,18 @@ def get_args():
     parser.add_argument(
         "-c", "--case", type=str, default="wcci", choices=["sand", "wcci"]
     )
-    parser.add_argument("--model_results", type=str, default="./result/wcci_run_0")
+    parser.add_argument("--controller", type=str, default="./result/wcci_run_0/model/")
     parser.add_argument("--c_suffix", type=str, default="last")
+    parser.add_argument("-s", "--seed", type=int, default=0)
+    parser.add_argument("--adv_name", type=str, default="")
+
+    parser.add_argument(
+        "-ap",
+        "--attack_period",
+        type=int,
+        default=50,
+        help="frequency of opponent attack",
+    )
 
     args = parser.parse_args()
 
@@ -132,8 +143,7 @@ def main(args):
     # Agent
     agent_name = "kaist"
     # data_dir = os.path.join("kaist_agent/data")
-    results_dir = args.model_results
-    with open(os.path.join(results_dir, "param.json"), "r", encoding="utf-8") as f:
+    with open(os.path.join(os.path.join(args.controller, "../"), "param.json"), "r", encoding="utf-8") as f:
         param = json.load(f)
     param["device"] = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(param)
@@ -150,9 +160,10 @@ def main(args):
     agent = Agent(experiment=None, env=env, **param)
     agent.load_mean_std(state_mean, state_std)
     agent.sim_trial = 0
-    agent.load_model(os.path.join(args.model_results, "model/"), name=args.c_suffix)
+    agent.load_model(args.controller, name=args.c_suffix)
 
     hyperparameters = {
+        "seed": args.seed,
         "timesteps_per_batch": 2048,
         "max_timesteps_per_episode": 200,
         "gamma": 0.99,
@@ -160,68 +171,19 @@ def main(args):
         "lr": 3e-4,
         "clip": 0.2,
         "lines_attacked": [
-            "0_4_2",
             "10_11_11",
-            "11_12_13",
-            "12_13_14",
             "12_16_20",
-            "13_14_15",
-            "13_15_16",
-            "14_16_17",
-            "14_35_53",
-            "15_16_21",
             "16_17_22",
             "16_18_23",
             "16_21_27",
             "16_21_28",
             "16_33_48",
-            "16_33_49",
-            "16_35_54",
-            "17_24_33",
-            "18_19_24",
-            "18_25_35",
-            "19_20_25",
-            "1_10_12",
-            "1_3_3",
-            "1_4_4",
-            "20_21_26",
-            "21_22_29",
-            "21_23_30",
-            "21_26_36",
-            "22_23_31",
-            "22_26_39",
-            "23_24_32",
-            "23_25_34",
-            "23_26_37",
-            "23_26_38",
-            "26_27_40",
-            "26_28_41",
-            "26_30_56",
-            "27_28_42",
-            "27_29_43",
-            "28_29_44",
-            "28_31_57",
-            "29_33_50",
-            "29_34_51",
-            "2_3_0",
-            "2_4_1",
-            "30_31_45",
-            "31_32_47",
-            "32_33_58",
-            "33_34_52",
-            "4_5_55",
-            "4_6_5",
-            "4_7_6",
-            "5_32_46",
-            "6_7_7",
-            "7_8_8",
-            "7_9_9",
-            "8_9_10",
+            "14_35_53",
             "9_16_18",
             "9_16_19",
         ],
         "attack_duration": 10,
-        "attack_period": 50,
+        "attack_period": args.attack_period,
         "danger": 0.9,
     }
 
@@ -234,6 +196,7 @@ def main(args):
         hyperparameters=hyperparameters,
         actor_model=args.actor_model,
         critic_model=args.critic_model,
+        adv_name=args.adv_name,
     )
 
 
