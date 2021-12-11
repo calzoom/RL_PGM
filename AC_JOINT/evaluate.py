@@ -18,9 +18,10 @@ from train import TrainAgent
 # import warnings
 # warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
-from simple_opponents.random_opponent import RandomOpponent, WeightedRandomOpponent
-from ppo.ppo import PPO
-from ppo.nnpytorch import FFN
+# from simple_opponents.random_opponent import RandomOpponent, WeightedRandomOpponent
+from ADVERSARY.ppo.ppo import PPO
+
+# from PPO.nnpytorch import FFN
 
 # from track1.agent import Track1PowerNetAgent
 # from kaist_agent_2.Kaist import Kaist
