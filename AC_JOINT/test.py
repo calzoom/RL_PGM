@@ -128,7 +128,7 @@ def cli():
         "-ad",
         "--attack_duration",
         type=int,
-        default=1,
+        default=10,
         help="length of opponent attack",
     )
     parser.add_argument(
@@ -375,6 +375,7 @@ if __name__ == "__main__":
     #                       lines_to_attack=SAND_LINES, attack_period=args.attack_period,
     #                       attack_duration=args.attack_duration)
     opponent = PPO(
+        experiment=None,
         env=env,
         agent=agent,
         policy_class=FFN,
@@ -384,7 +385,7 @@ if __name__ == "__main__":
         **hyperparameters,
     )
     opponent.actor.load_state_dict(
-        torch.load("./ADVERSARY/ppo_actor_kaist_easy.pth")
+        torch.load("./ppo_actor_.pth")
     )  # ! hard coded for pre-trained adversary
     # opponent = None
     print(opponent)

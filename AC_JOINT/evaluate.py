@@ -20,8 +20,7 @@ from train import TrainAgent
 
 # from simple_opponents.random_opponent import RandomOpponent, WeightedRandomOpponent
 from ADVERSARY.ppo.ppo import PPO
-
-# from PPO.nnpytorch import FFN
+from ADVERSARY.ppo.nnpytorch import FFN
 
 # from track1.agent import Track1PowerNetAgent
 # from kaist_agent_2.Kaist import Kaist
@@ -194,8 +193,8 @@ if __name__ == "__main__":
     model_name = args.name  # + "_" + args.opp + "_adv_" + str(args.seed)
     print("model_name: ", model_name)
 
-    OUTPUT_DIR = "../result"
-    DATA_DIR = "../data"
+    OUTPUT_DIR = "./result"
+    DATA_DIR = args.datapath
     output_result_dir = os.path.join(OUTPUT_DIR, model_name)
 
     if torch.cuda.is_available():
@@ -251,7 +250,7 @@ if __name__ == "__main__":
 
     # # KAIST Agent
     model_path = os.path.join(output_result_dir, "model")
-    my_agent = Agent(env, **vars(args))
+    my_agent = Agent(experiment=None, env=env, **vars(args))
     mean = torch.load(os.path.join(env_path, "mean.pt"))
     std = torch.load(os.path.join(env_path, "std.pt"))
     my_agent.load_mean_std(mean, std)
@@ -283,14 +282,13 @@ if __name__ == "__main__":
         "state_dim": 1062,  # 342 for sandbox
     }
 
-    data_dir = os.path.join("../data/l2rpn_wcci_2020")
     with open(
-        os.path.join("../result/wcci_run_0/param.json"), "r", encoding="utf-8"
+        os.path.join(output_result_dir, "param.json"), "r", encoding="utf-8"
     ) as f:
         param = json.load(f)
     # print(param)
-    mean = torch.load(os.path.join(data_dir, "mean.pt"), map_location="cpu").cpu()
-    std = torch.load(os.path.join(data_dir, "std.pt"), map_location="cpu").cpu()
+    mean = torch.load(os.path.join(env_path, "mean.pt"), map_location="cpu").cpu()
+    std = torch.load(os.path.join(env_path, "std.pt"), map_location="cpu").cpu()
 
     for i in range(1):
         ##opponent_ppo.actor.load_state_dict(torch.load('./ppo_actor_kaist.pth'))
@@ -301,17 +299,19 @@ if __name__ == "__main__":
         # opponent_ppo_nanyang = PPO(env=env, agent=my_agent, policy_class=FFN, state_mean=None, state_std=None, transfer=True, **hyperparameters2)
         # opponent_ppo_nanyang.actor.load_state_dict(torch.load('../ppo_actor_wcci_transfer_0.02clip.pth'))
 
-        # opponent_ppo_kaist = PPO(
-        #     env=env,
-        #     agent=my_agent,
-        #     policy_class=FFN,
-        #     state_mean=mean,
-        #     state_std=std,
-        #     **hyperparameters,
-        # )
-        # opponent_ppo_kaist.actor.load_state_dict(
-        #     torch.load("../ppo_actor_kaist_easy.pth")
-        # )
+        opponent_ppo_kaist = PPO(
+            experiment=None,
+            env=env,
+            agent=my_agent,
+            policy_class=FFN,
+            state_mean=mean,
+            state_std=std,
+            **hyperparameters,
+        )
+        opponent_ppo_kaist.actor.load_state_dict(
+            # torch.load("./ADVERSARY/ppo_actor_kaist_easy.pth")
+            torch.load("./result/ppo_actor_FFN_k50.pth")
+        )
         # opponent_ppo_nanyang = PPO(
         #     env=env,
         #     agent=my_agent,
@@ -354,9 +354,17 @@ if __name__ == "__main__":
         #     rng=rng2,
         # )
 
-        trainer_def = TrainAgent(
-            my_agent, None, env, env, device, dn_json_path, dn_ffw, ep_infos
-        )
+        # trainer_def = TrainAgent(
+        #     agent=my_agent,
+        #     opp=None,
+        #     env=env,
+        #     test_env=env,
+        #     device=device,
+        #     dn_json_path=dn_json_path,
+        #     dn_ffw=dn_ffw,
+        #     ep_infos=ep_infos,
+        #     experiment=None,
+        # )
         # trainer_ppo_d3qn = TrainAgent(
         #     my_agent,
         #     opponent_ppo_d3qn,
@@ -367,16 +375,17 @@ if __name__ == "__main__":
         #     dn_ffw,
         #     ep_infos,
         # )
-        # trainer_ppo_kaist = TrainAgent(
-        #     my_agent,
-        #     opponent_ppo_kaist,
-        #     env,
-        #     env,
-        #     device,
-        #     dn_json_path,
-        #     dn_ffw,
-        #     ep_infos,
-        # )
+        trainer_ppo_kaist = TrainAgent(
+            my_agent,
+            opponent_ppo_kaist,
+            env,
+            env,
+            device,
+            dn_json_path,
+            dn_ffw,
+            ep_infos,
+            experiment=None,
+        )
         # trainer_ppo_nanyang = TrainAgent(
         #     my_agent,
         #     opponent_ppo_nanyang,
@@ -394,16 +403,16 @@ if __name__ == "__main__":
         #     my_agent, opponent_wro, env, env, device, dn_json_path, dn_ffw, ep_infos
         # )
 
-        if not os.path.exists(output_result_dir):
-            os.makedirs(output_result_dir)
-        print("-" * 20 + " No Opponent " + "-" * 20)
-        _, tmp_scores, tmp_steps = trainer_def.evaluate(
-            test_chronics, MAX_FFW[args.case], output_result_dir + "/no_opp_", mode
-        )
+        # if not os.path.exists(output_result_dir):
+        #     os.makedirs(output_result_dir)
+        # print("-" * 20 + " No Opponent " + "-" * 20)
+        # _, tmp_scores, tmp_steps = trainer_def.evaluate(
+        #     test_chronics, MAX_FFW[args.case], output_result_dir + "/no_opp_", mode
+        # )
         # print("-" * 20 + " PPO D3QN " + "-" * 20)
         # trainer_ppo_d3qn.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/transfer_", mode)
-        # print("-" * 20 + " PPO KAIST" + "-" * 20)
-        # trainer_ppo_kaist.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/ppo_", mode)
+        print("-" * 20 + " PPO KAIST" + "-" * 20)
+        trainer_ppo_kaist.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/ppo_", mode)
         # print("-" * 20 + " PPO Nanyang" + "-" * 20)
         # trainer_ppo_nanyang.evaluate(
         #     test_chronics, MAX_FFW[args.case], output_result_dir + "/ppo_", mode
