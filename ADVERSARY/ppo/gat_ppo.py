@@ -7,7 +7,7 @@ import torch.nn as nn
 from ADVERSARY.ppo.nnpytorch import FFN
 from torch.distributions import Categorical, MultivariateNormal
 from torch.optim import Adam
-
+import ipdb
 
 class GPPO:
     """
@@ -56,7 +56,7 @@ class GPPO:
         # Set environment variables
         self.act_dim = len(self._attacks)
         self.obs_dim = 5 # self.state_dim
-
+        
         # Initialize actor and critic networks
         self.actor = policy_class(input_dim=self.obs_dim, # 6 god
                                   gat_output_dim=self.model_dim, 
@@ -66,7 +66,7 @@ class GPPO:
                                   act_dim=self.act_dim).to(
             self.device
         )  # ALG STEP 1 
-        self.critic = FFN(self.obs_dim, 1, self.model_dim).to(self.device)
+        self.critic = FFN(6*177, 1, self.model_dim).to(self.device)
 
         # Initialize optimizers for actor and critic
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)

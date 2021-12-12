@@ -178,7 +178,7 @@ def main(args):
 
     hyperparameters = {
         "seed": args.seed,
-        "timesteps_per_batch": 2048, # 2048
+        "timesteps_per_batch": 448, # 2048
         "max_timesteps_per_episode": 200, # 200
         "gamma": 0.99,
         "n_updates_per_iteration": 10,
