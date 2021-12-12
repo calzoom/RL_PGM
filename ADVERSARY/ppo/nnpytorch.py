@@ -1,7 +1,3 @@
-'''
-Pytorch version of the Grid2Op D3QN neural network.
-'''
-
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -15,14 +11,23 @@ class GNN(nn.Module):
 	def __init__(self, input_dim, gat_output_dim=128, nheads=8, node=36, dropout=0, act_dim=10):
 		super(GNN, self).__init__()
 		self.emb = EncoderLayer(input_dim, output_dim=gat_output_dim, nheads=8, node=node, dropout=0)
-		self.layer1 = nn.Linear(gat_output_dim, 64)
-		self.layer2 = nn.Linear(64, act_dim)
+		
+		self.down = nn.Linear(gat_output_dim, 1)
+		self.mu = nn.Linear(gat_output_dim, act_dim)
 
 	def forward(self, x, adj):
-		x = self.emb(x, adj)
-		x = self.layer1(x)
-		x = self.layer2(x)
-		return x
+		x_orig = x
+		p1, p2 = x[:,:,:3], x[:,:,4:]
+		x = torch.cat([p1, p2], dim=-1)
+		t = x[:,:,3]
+		x = self.emb(x, adj) # output: [1, 177, 128]
+		x = self.down(x).squeeze(-1) # [1, 177]
+		x = torch.cat([x, t], dim=-1) # [1, 354]
+
+		x = F.leaky_relu(x)
+
+		mu = self.mu(x) # [1, 10]
+		return mu
 
 
 class FFN(nn.Module):
