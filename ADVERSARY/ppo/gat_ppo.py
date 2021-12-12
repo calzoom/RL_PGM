@@ -1,12 +1,13 @@
-import numpy as np
 import time
+
 import ADVERSARY
+import numpy as np
 import torch
 import torch.nn as nn
-from torch.optim import Adam
-from torch.distributions import MultivariateNormal, Categorical
-
 from ADVERSARY.ppo.nnpytorch import FFN
+from torch.distributions import Categorical, MultivariateNormal
+from torch.optim import Adam
+
 
 class GPPO:
     """
@@ -54,10 +55,10 @@ class GPPO:
 
         # Set environment variables
         self.act_dim = len(self._attacks)
-        self.obs_dim = self.state_dim
+        self.obs_dim = 5 # self.state_dim
 
         # Initialize actor and critic networks
-        self.actor = policy_class(input_dim=self.obs_dim, 
+        self.actor = policy_class(input_dim=self.obs_dim, # 6 god
                                   gat_output_dim=self.model_dim, 
                                   nheads=8,
                                   node=self.env.dim_topo,
@@ -462,9 +463,9 @@ class GPPO:
         main_[..., self.action_space.line_or_pos_topo_vect] = temp
         main_[..., self.action_space.line_ex_pos_topo_vect] = temp
         topo_ = o[..., self.topo]
-        self.topo_ = torch.clamp(o[..., self.topo] - 1, -1).unsqueeze(-1)
+        # self.topo_ = torch.clamp(o[..., self.topo] - 1, -1).unsqueeze(-1)
         state = torch.stack([p_, rho_, danger_, topo_, over_, main_], dim=2)  # B, N, F
-        state = torch.reshape(state, (state.size(0), -1))
+        # state = torch.reshape(state, (state.size(0), -1))
         return state.to(self.device) # ! double check state is dim 6
 
     def _init_hyperparameters(self, hyperparameters):
