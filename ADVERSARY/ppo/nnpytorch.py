@@ -6,6 +6,24 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
+from CONTROLLER.models import EncoderLayer
+
+class GNN(nn.Module):
+	"""
+	Graph Attention
+	"""
+	def __init__(self, input_dim, gat_output_dim=128, nheads=8, node=36, dropout=0, act_dim=10):
+		super(GNN, self).__init__()
+		self.emb = EncoderLayer(input_dim, output_dim=gat_output_dim, nheads=8, node=node, dropout=0)
+		self.layer1 = nn.Linear(gat_output_dim, 64)
+		self.layer2 = nn.Linear(64, act_dim)
+
+	def forward(self, x, adj):
+		x = self.emb(x, adj)
+		x = self.layer1(x)
+		x = self.layer2(x)
+		return x
+
 
 class FFN(nn.Module):
 	"""

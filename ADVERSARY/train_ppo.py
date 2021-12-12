@@ -24,6 +24,8 @@ from CONTROLLER.agent import Agent
 
 from ppo.ppo import PPO
 from ppo.nnpytorch import FFN
+from ppo.gat_ppo import GPPO
+from ppo.nnpytorch import GNN
 
 
 def train(
@@ -45,11 +47,23 @@ def train(
     experiment.set_name(adv_name)
 
     # Create a model for PPO.
-    model = PPO(
+    # ! when using our own architecture CHANGE THIS
+    # model = PPO(
+    #     experiment=experiment,
+    #     env=env,
+    #     agent=agent,
+    #     policy_class=FFN,
+    #     state_mean=state_mean,
+    #     state_std=state_std,
+    #     name=adv_name,
+    #     **hyperparameters,
+    # )
+
+    model = GPPO(
         experiment=experiment,
         env=env,
         agent=agent,
-        policy_class=FFN,
+        policy_class=GNN,
         state_mean=state_mean,
         state_std=state_std,
         name=adv_name,
@@ -164,8 +178,8 @@ def main(args):
 
     hyperparameters = {
         "seed": args.seed,
-        "timesteps_per_batch": 2048,
-        "max_timesteps_per_episode": 200,
+        "timesteps_per_batch": 2048, # 2048
+        "max_timesteps_per_episode": 200, # 200
         "gamma": 0.99,
         "n_updates_per_iteration": 10,
         "lr": 3e-4,
