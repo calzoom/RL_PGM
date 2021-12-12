@@ -25,7 +25,6 @@ from CONTROLLER.agent import Agent
 from ppo.ppo import PPO
 from ppo.nnpytorch import FFN
 from ppo.gat_ppo import GPPO
-from ppo.nnpytorch import GNN
 
 
 def train(
@@ -63,7 +62,7 @@ def train(
         experiment=experiment,
         env=env,
         agent=agent,
-        policy_class=GNN,
+        policy_class=None,
         state_mean=state_mean,
         state_std=state_std,
         name=adv_name,

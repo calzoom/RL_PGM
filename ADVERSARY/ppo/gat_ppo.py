@@ -4,9 +4,10 @@ import ADVERSARY
 import numpy as np
 import torch
 import torch.nn as nn
-from ADVERSARY.ppo.nnpytorch import FFN
+from ADVERSARY.ppo.nnpytorch import FFN, Actor, Critic
 from torch.distributions import Categorical, MultivariateNormal
 from torch.optim import Adam
+from CONTROLLER.models import AEncoderLayer
 import ipdb
 
 class GPPO:
@@ -55,18 +56,39 @@ class GPPO:
 
         # Set environment variables
         self.act_dim = len(self._attacks)
-        self.obs_dim = 5 # self.state_dim
-        
+        self.obs_dim = self.state_dim
+        torch.autograd.set_detect_anomaly(True)
         # Initialize actor and critic networks
-        self.actor = policy_class(input_dim=self.obs_dim, # 6 god
-                                  gat_output_dim=self.model_dim, 
-                                  nheads=8,
-                                  node=self.env.dim_topo,
-                                  dropout=0, 
-                                  act_dim=self.act_dim).to(
-            self.device
-        )  # ALG STEP 1 
-        self.critic = FFN(6*177, 1, self.model_dim).to(self.device)
+        # The actor and critic share a graph embedding
+        self.emb = AEncoderLayer(input_dim=5, # 5
+                                output_dim=self.model_dim, # 128
+                                nheads=8,
+                                node=self.env.dim_topo, # 36
+                                dropout=0).to(self.device)
+
+        # self.actor = Actor(input_dim=128, 
+        #                    output_dim=self.act_dim, 
+        #                    model_dim=self.model_dim,
+        #                    encoder=self.emb).to(self.device)
+
+        self.actor = FFN(observation_size=1062,
+                         action_size=self.act_dim,
+                         model_dim=self.model_dim).to(self.device)
+
+        self.critic = Critic(input_dim=128, 
+                             output_dim=1, 
+                             model_dim=self.model_dim,
+                             encoder=self.emb).to(self.device)
+
+        # self.actor = policy_class(input_dim=self.obs_dim, # 6 god
+        #                           gat_output_dim=self.model_dim, 
+        #                           nheads=8,
+        #                           node=self.env.dim_topo,
+        #                           dropout=0, 
+        #                           act_dim=self.act_dim).to(
+        #     self.device
+        # )  # ALG STEP 1 
+        # self.critic = FFN(6*177, 1, self.model_dim).to(self.device)
 
         # Initialize optimizers for actor and critic
         self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
@@ -336,7 +358,9 @@ class GPPO:
             return None
         adj = torch.FloatTensor(obs.connectivity_matrix()).to(self.device) + torch.eye(int(obs.dim_topo)).to(self.device)
         adj = adj.unsqueeze(0)
-        mean = self.actor(self.convert_obs(obs), adj)
+        # mean = self.actor(self.convert_obs(obs), adj)
+        o = self.convert_obs(obs)
+        mean = self.actor(o.reshape(o.shape[0], -1))
 
         # Create a distribution with the given mean
         dist = Categorical(logits=mean)
@@ -350,7 +374,7 @@ class GPPO:
 
         return self._attacks[action]
 
-    def get_action(self, obs, adj):
+    def get_action(self, obs, adj=None):
         """
         Queries an action from the actor network, should be called from rollout.
         Parameters:
@@ -360,7 +384,8 @@ class GPPO:
             log_prob - the log probability of the selected action in the distribution
         """
         # Query the actor network for a mean action
-        mean = self.actor(obs, adj)
+        # mean = self.actor(obs, adj)
+        mean = self.actor(obs.reshape(obs.shape[0], -1))
 
         # Create a distribution with the mean action and std from the covariance matrix above.
         # For more information on how this distribution works, check out Andrew Ng's lecture on it:
@@ -396,11 +421,13 @@ class GPPO:
             log_probs - the log probabilities of the actions taken in batch_acts given batch_obs
         """
         # Query critic network for a value V for each batch_obs. Shape of V should be same as batch_rtgs
-        V = self.critic(batch_obs).squeeze()
+        V = self.critic(batch_obs, batch_adjs).squeeze()
 
         # Calculate the log probabilities of batch actions using most recent actor network.
         # This segment of code is similar to that in get_action()
-        mean = self.actor(batch_obs, batch_adjs)
+        # mean = self.actor(batch_obs, batch_adjs)
+        batch_obs  = batch_obs.reshape(batch_obs.shape[0], -1)
+        mean = self.actor(batch_obs)
         # dist = MultivariateNormal(mean, self.cov_mat)
         # log_probs = dist.log_prob(batch_acts)
         dist = Categorical(logits=mean)

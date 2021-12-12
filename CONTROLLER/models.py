@@ -51,11 +51,11 @@ class Actor(nn.Module):
         self.log_std_min = log_std_min
 
     def forward(self, x, adj):
-        x, t = x  # !: keep in mind only x(exogenous) is passed around here
+        x, t = x  # !: keep in mind only x(exogenous) is passed around here (t.shape=[1,177])
         x = self.gat1(x, adj)
         x = self.gat2(x, adj)
         x = self.gat3(x, adj)  # x is (n x k_a)
-        x = self.down(x).squeeze(-1)  # results in R^n tensor (n is all elems in grid)
+        x = self.down(x).squeeze(-1)  # results in R^n tensor (n is all elems in grid) [1, 177]
         x = torch.cat([x, t], dim=-1)
         state = x
         x = F.leaky_relu(x)
@@ -190,6 +190,28 @@ class DoubleSoftQ(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, input_dim, output_dim, nheads, node, dropout=0):
         super(EncoderLayer, self).__init__()
+        self.linear = nn.Linear(input_dim, output_dim)
+        self.gat1 = GATLayer(output_dim, nheads, dropout)
+        self.gat2 = GATLayer(output_dim, nheads, dropout)
+        self.gat3 = GATLayer(output_dim, nheads, dropout)
+        self.gat4 = GATLayer(output_dim, nheads, dropout)
+        self.gat5 = GATLayer(output_dim, nheads, dropout)
+        self.gat6 = GATLayer(output_dim, nheads, dropout)
+
+    # input to l_th block is embedding from teh previous layer and adj matrix
+    def forward(self, x, adj):  # x, adj = x_tilde, M
+        x = self.linear(x)
+        x = self.gat1(x, adj)
+        x = self.gat2(x, adj)
+        x = self.gat3(x, adj)
+        x = self.gat4(x, adj)
+        x = self.gat5(x, adj)
+        x = self.gat6(x, adj)
+        return x  # dimension n x k_s
+
+class AEncoderLayer(nn.Module):
+    def __init__(self, input_dim, output_dim, nheads, node, dropout=0):
+        super().__init__()
         self.linear = nn.Linear(input_dim, output_dim)
         self.gat1 = GATLayer(output_dim, nheads, dropout)
         self.gat2 = GATLayer(output_dim, nheads, dropout)
