@@ -7,8 +7,7 @@ import torch.nn as nn
 from ADVERSARY.ppo.nnpytorch import FFN, Actor, Critic
 from torch.distributions import Categorical, MultivariateNormal
 from torch.optim import Adam
-from CONTROLLER.models import AEncoderLayer
-import ipdb
+from CONTROLLER.models import AEncoderLayer 
 
 class GPPO:
     """
@@ -127,6 +126,9 @@ class GPPO:
         )
         t_so_far = 0  # Timesteps simulated so far
         i_so_far = 0  # Iterations ran so far
+
+        scaler = torch.cuda.amp.GradScaler()
+
         while t_so_far < total_timesteps:  # ALG STEP 2
             # Autobots, roll out (just kidding, we're collecting our batch simulations here)
             (
@@ -149,8 +151,9 @@ class GPPO:
             self.logger["i_so_far"] = i_so_far
 
             # Calculate advantage at k-th iteration
-            V, _ = self.evaluate(batch_obs, batch_adjs, batch_acts)
-            A_k = batch_rtgs - V.detach()  # ALG STEP 5
+            with torch.cuda.amp.autocast():
+                V, _ = self.evaluate(batch_obs, batch_adjs, batch_acts)
+                A_k = batch_rtgs - V.detach()  # ALG STEP 5
 
             # One of the only tricks I use that isn't in the pseudocode. Normalizing advantages
             # isn't theoretically necessary, but in practice it decreases the variance of
@@ -161,7 +164,8 @@ class GPPO:
             # This is the loop where we update our network for some n epochs
             for _ in range(self.n_updates_per_iteration):  # ALG STEP 6 & 7
                 # Calculate V_phi and pi_theta(a_t | s_t)
-                V, curr_log_probs = self.evaluate(batch_obs, batch_adjs, batch_acts)
+                with torch.cuda.amp.autocast():
+                    V, curr_log_probs = self.evaluate(batch_obs, batch_adjs, batch_acts)
 
                 # Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
                 # NOTE: we just subtract the logs, which is the same as
@@ -170,18 +174,19 @@ class GPPO:
                 # here's a great explanation:
                 # https://cs.stackexchange.com/questions/70518/why-do-we-use-the-log-in-gradient-based-reinforcement-algorithms
                 # TL;DR makes gradient ascent easier behind the scenes.
-                ratios = torch.exp(curr_log_probs - batch_log_probs)
+                with torch.cuda.amp.autocast():
+                    ratios = torch.exp(curr_log_probs - batch_log_probs)
 
-                # Calculate surrogate losses.
-                surr1 = ratios * A_k
-                surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * A_k
+                    # Calculate surrogate losses.
+                    surr1 = ratios * A_k
+                    surr2 = torch.clamp(ratios, 1 - self.clip, 1 + self.clip) * A_k
 
-                # Calculate actor and critic losses.
-                # NOTE: we take the negative min of the surrogate losses because we're trying to maximize
-                # the performance function, but Adam minimizes the loss. So minimizing the negative
-                # performance function maximizes it.
-                actor_loss = (-torch.min(surr1, surr2)).mean()
-                critic_loss = nn.MSELoss()(V, batch_rtgs)
+                    # Calculate actor and critic losses.
+                    # NOTE: we take the negative min of the surrogate losses because we're trying to maximize
+                    # the performance function, but Adam minimizes the loss. So minimizing the negative
+                    # performance function maximizes it.
+                    actor_loss = (-torch.min(surr1, surr2)).mean()
+                    critic_loss = nn.MSELoss()(V, batch_rtgs)
 
                 self.experiment.log_metric(
                     "actor_loss", actor_loss.item(), step=self.logger["i_so_far"]
@@ -192,13 +197,15 @@ class GPPO:
 
                 # Calculate gradients and perform backward propagation for actor network
                 self.actor_optim.zero_grad()
-                actor_loss.backward(retain_graph=True)
-                self.actor_optim.step()
+                scaler.scale(actor_loss).backward(retain_graph=True)
+                scaler.step(self.actor_optim)
 
                 # Calculate gradients and perform backward propagation for critic network
                 self.critic_optim.zero_grad()
-                critic_loss.backward()
-                self.critic_optim.step()
+                scaler.scale(critic_loss).backward()
+                scaler.step(self.critic_optim)
+
+                scaler.update()
 
                 # Log actor loss
                 self.logger["actor_losses"].append(actor_loss.detach())
