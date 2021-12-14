@@ -46,28 +46,31 @@ def train(
     experiment.set_name(adv_name)
 
     # Create a model for PPO.
-    # ! when using our own architecture CHANGE THIS
-    # model = PPO(
-    #     experiment=experiment,
-    #     env=env,
-    #     agent=agent,
-    #     policy_class=FFN,
-    #     state_mean=state_mean,
-    #     state_std=state_std,
-    #     name=adv_name,
-    #     **hyperparameters,
-    # )
-
-    model = GPPO(
-        experiment=experiment,
-        env=env,
-        agent=agent,
-        policy_class=None,
-        state_mean=state_mean,
-        state_std=state_std,
-        name=adv_name,
-        **hyperparameters,
-    )
+    if args.adversary_type == "FFN":
+        model = PPO(
+            experiment=experiment,
+            env=env,
+            agent=agent,
+            policy_class=FFN,
+            state_mean=state_mean,
+            state_std=state_std,
+            name=adv_name, # when training this is appended to ppo_actor_{}.pth
+            **hyperparameters,
+        )
+    elif args.adversary_type == "GAT":
+        model = GPPO(
+            experiment=experiment,
+            env=env,
+            agent=agent,
+            policy_class=None,
+            state_mean=state_mean,
+            state_std=state_std,
+            name=adv_name,
+            **hyperparameters,
+        )
+    else:
+        print(f"Invalid adversary type: {args.adversary_type}")
+        exit(0)
 
     # Tries to load in an existing actor/critic model to continue training on
     if actor_model != "" and critic_model != "":
@@ -120,6 +123,7 @@ def get_args():
     parser.add_argument("--c_suffix", type=str, default="last")
     parser.add_argument("-s", "--seed", type=int, default=0)
     parser.add_argument("--adv_name", type=str, default="")
+    parser.add_argument("--adversary_type", type=str, default="FFN", choice=["FFN", "GAT"])
 
     parser.add_argument(
         "-ap",
