@@ -26,6 +26,7 @@ from ppo.ppo import PPO
 from ppo.nnpytorch import FFN
 from ppo.gat_ppo import GPPO
 
+ADVERSARY_TYPE = None
 
 def train(
     env, agent, state_mean, state_std, hyperparameters, actor_model, critic_model, adv_name
@@ -46,7 +47,8 @@ def train(
     experiment.set_name(adv_name)
 
     # Create a model for PPO.
-    if args.adversary_type == "FFN":
+    if ADVERSARY_TYPE == "FFN":
+        print("Training FFN Adversary")
         model = PPO(
             experiment=experiment,
             env=env,
@@ -57,7 +59,8 @@ def train(
             name=adv_name, # when training this is appended to ppo_actor_{}.pth
             **hyperparameters,
         )
-    elif args.adversary_type == "GAT":
+    elif ADVERSARY_TYPE == "GAT":
+        print("Training GAT adversary")
         model = GPPO(
             experiment=experiment,
             env=env,
@@ -69,7 +72,7 @@ def train(
             **hyperparameters,
         )
     else:
-        print(f"Invalid adversary type: {args.adversary_type}")
+        print(f"Invalid adversary type: {ADVERSARY_TYPE}")
         exit(0)
 
     # Tries to load in an existing actor/critic model to continue training on
@@ -123,7 +126,7 @@ def get_args():
     parser.add_argument("--c_suffix", type=str, default="last")
     parser.add_argument("-s", "--seed", type=int, default=0)
     parser.add_argument("--adv_name", type=str, default="")
-    parser.add_argument("--adversary_type", type=str, default="FFN", choice=["FFN", "GAT"])
+    parser.add_argument("--adversary_type", type=str, default="FFN", choices=["FFN", "GAT"])
 
     parser.add_argument(
         "-ap",
@@ -203,6 +206,8 @@ def main(args):
         "attack_period": args.attack_period,
         "danger": 0.9,
     }
+
+    ADVERSARY_TYPE = args.adversary_type
 
     # Train or test, depending on the mode specified
     train(
