@@ -5,7 +5,6 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.distributions import MultivariateNormal, Categorical
 
-
 class PPO:
     """
     This is the PPO class we will use as our model in main.py
@@ -452,7 +451,7 @@ class PPO:
         topo_ = o[..., self.topo]
         state = torch.stack([p_, rho_, danger_, topo_, over_, main_], dim=2)  # B, N, F
         state = torch.reshape(state, (state.size(0), -1))
-        return state.to(self.device)
+        return state.to(self.device) # ! double check state is dim 6
 
     def _init_hyperparameters(self, hyperparameters):
         """
@@ -476,7 +475,7 @@ class PPO:
         )
         self.clip = 0.2  # Recommended 0.2, helps define the threshold to clip the ratio during SGA
         self.model_dim = 128  # Hidden size of model
-        self.state_dim = 1062  # Size of model embedding
+        self.state_dim = 1062  # Size of model embedding (177 * 6)
 
         # Miscellaneous parameters
         # self.render = True                              # If we should render during rollout

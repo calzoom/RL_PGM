@@ -286,6 +286,15 @@ class TrainAgent(object):
                             self.experiment.log_metric(
                                 "best_score", best_score, step=self.agent.update_step
                             )
+                        
+                        with open(
+                            os.path.join(output_dir, "scores.out", "a", newline="")
+                        ) as cf:
+                            cf.write(f"{stats['score']}, ")
+                        with open(
+                            os.path.join(output_dir, "steps.out", "a", newline="")
+                        ) as cf:
+                            cf.write(f"{stats['step']}, ")
 
                         # log and save model
                         with open(

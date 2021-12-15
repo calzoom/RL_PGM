@@ -26,10 +26,8 @@ from ppo.ppo import PPO
 from ppo.nnpytorch import FFN
 from ppo.gat_ppo import GPPO
 
-ADVERSARY_TYPE = None
-
 def train(
-    env, agent, state_mean, state_std, hyperparameters, actor_model, critic_model, adv_name
+    env, agent, state_mean, state_std, hyperparameters, actor_model, critic_model, adv_name, ADVERSARY_TYPE
 ):
     """
     Trains the model.
@@ -207,8 +205,6 @@ def main(args):
         "danger": 0.9,
     }
 
-    ADVERSARY_TYPE = args.adversary_type
-
     # Train or test, depending on the mode specified
     train(
         env=env,
@@ -219,6 +215,7 @@ def main(args):
         actor_model=args.actor_model,
         critic_model=args.critic_model,
         adv_name=args.adv_name,
+        ADVERSARY_TYPE=args.adversary_type,
     )
 
 

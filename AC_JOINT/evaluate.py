@@ -18,7 +18,7 @@ from train import TrainAgent
 # import warnings
 # warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
-# from simple_opponents.random_opponent import RandomOpponent, WeightedRandomOpponent
+from ADVERSARY.simple_opponents.random_opponent import RandomOpponent, WeightedRandomOpponent
 from ADVERSARY.ppo.ppo import PPO
 from ADVERSARY.ppo.nnpytorch import FFN
 
@@ -94,7 +94,7 @@ def cli():
     parser.add_argument("-gpu", "--gpuid", type=int, default=0)
     parser.add_argument("-data", "--datapath", type=str, default="./data")
     parser.add_argument("-out", "--output", type=str, default="./result")
-
+    parser.add_argument("-ap", type=int, default=50, help="attack period", choices=[20,50,200])
     parser.add_argument(
         "-hn",
         "--head_number",
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     ]
     SAND_LINES = ["1_2_2", "1_4_4", "2_3_5", "6_8_19", "8_13_11", "9_10_12"]
 
-    attack_period = 50
+    attack_period = args.ap
     attack_duration = 10
     attack_lines = EASY_LINES
 
@@ -291,13 +291,6 @@ if __name__ == "__main__":
     std = torch.load(os.path.join(env_path, "std.pt"), map_location="cpu").cpu()
 
     for i in range(1):
-        ##opponent_ppo.actor.load_state_dict(torch.load('./ppo_actor_kaist.pth'))
-        # opponent_ppo_d3qn = PPO(env=env, agent=my_agent, policy_class=FFN, state_mean=mean, state_std=std, **hyperparameters)
-        # opponent_ppo_d3qn.actor.load_state_dict(torch.load('../ppo_actor_easy_0.02clip.pth'))
-        # opponent_ppo_kaist = PPO(env=env, agent=my_agent, policy_class=FFN, state_mean=mean, state_std=std, **hyperparameters)
-        # opponent_ppo_kaist.actor.load_state_dict(torch.load(f'../ppo_actor_nanyang_wcci.pth'))
-        # opponent_ppo_nanyang = PPO(env=env, agent=my_agent, policy_class=FFN, state_mean=None, state_std=None, transfer=True, **hyperparameters2)
-        # opponent_ppo_nanyang.actor.load_state_dict(torch.load('../ppo_actor_wcci_transfer_0.02clip.pth'))
 
         opponent_ppo_kaist = PPO(
             experiment=None,
@@ -312,69 +305,38 @@ if __name__ == "__main__":
             # torch.load("./ADVERSARY/ppo_actor_kaist_easy.pth")
             torch.load("./result/ppo_actor_FFN_k50.pth")
         )
-        # opponent_ppo_nanyang = PPO(
-        #     env=env,
-        #     agent=my_agent,
-        #     policy_class=FFN,
-        #     state_mean=mean,
-        #     state_std=std,
-        #     **hyperparameters,
-        # )
-        # opponent_ppo_nanyang.actor.load_state_dict(
-        #     torch.load(f"../ppo_actor_nanyang_wcci.pth")
-        # )
-        # opponent_ppo_d3qn = PPO(
-        #     env=env,
-        #     agent=my_agent,
-        #     policy_class=FFN,
-        #     state_mean=None,
-        #     state_std=None,
-        #     transfer=True,
-        #     **hyperparameters2,
-        # )
-        # opponent_ppo_d3qn.actor.load_state_dict(
-        #     torch.load("../ppo_actor_wcci_transfer_0.02clip.pth")
-        # )
-        # rng1 = np.random.default_rng(i)
-        # rng2 = np.random.default_rng(i)
-        # opponent_ran = RandomOpponent(
-        #     env.observation_space,
-        #     env.action_space,
-        #     lines_to_attack=attack_lines,
-        #     attack_period=attack_period,
-        #     attack_duration=attack_duration,
-        #     rng=rng1,
-        # )
-        # opponent_wro = WeightedRandomOpponent(
-        #     env.observation_space,
-        #     env.action_space,
-        #     lines_to_attack=attack_lines,
-        #     attack_period=attack_period,
-        #     attack_duration=attack_duration,
-        #     rng=rng2,
-        # )
 
-        # trainer_def = TrainAgent(
-        #     agent=my_agent,
-        #     opp=None,
-        #     env=env,
-        #     test_env=env,
-        #     device=device,
-        #     dn_json_path=dn_json_path,
-        #     dn_ffw=dn_ffw,
-        #     ep_infos=ep_infos,
-        #     experiment=None,
-        # )
-        # trainer_ppo_d3qn = TrainAgent(
-        #     my_agent,
-        #     opponent_ppo_d3qn,
-        #     env,
-        #     env,
-        #     device,
-        #     dn_json_path,
-        #     dn_ffw,
-        #     ep_infos,
-        # )
+        rng1 = np.random.default_rng(i)
+        rng2 = np.random.default_rng(i)
+        opponent_ran = RandomOpponent(
+            env.observation_space,
+            env.action_space,
+            lines_to_attack=attack_lines,
+            attack_period=attack_period,
+            attack_duration=attack_duration,
+            rng=rng1,
+        )
+        opponent_wro = WeightedRandomOpponent(
+            env.observation_space,
+            env.action_space,
+            lines_to_attack=attack_lines,
+            attack_period=attack_period,
+            attack_duration=attack_duration,
+            rng=rng2,
+        )
+
+        trainer_def = TrainAgent(
+            agent=my_agent,
+            opp=None,
+            env=env,
+            test_env=env,
+            device=device,
+            dn_json_path=dn_json_path,
+            dn_ffw=dn_ffw,
+            ep_infos=ep_infos,
+            experiment=None,
+        )
+
         trainer_ppo_kaist = TrainAgent(
             my_agent,
             opponent_ppo_kaist,
@@ -386,38 +348,23 @@ if __name__ == "__main__":
             ep_infos,
             experiment=None,
         )
-        # trainer_ppo_nanyang = TrainAgent(
-        #     my_agent,
-        #     opponent_ppo_nanyang,
-        #     env,
-        #     env,
-        #     device,
-        #     dn_json_path,
-        #     dn_ffw,
-        #     ep_infos,
-        # )
-        # trainer_ran = TrainAgent(
-        #     my_agent, opponent_ran, env, env, device, dn_json_path, dn_ffw, ep_infos
-        # )
-        # trainer_wro = TrainAgent(
-        #     my_agent, opponent_wro, env, env, device, dn_json_path, dn_ffw, ep_infos
-        # )
 
-        # if not os.path.exists(output_result_dir):
-        #     os.makedirs(output_result_dir)
-        # print("-" * 20 + " No Opponent " + "-" * 20)
-        # _, tmp_scores, tmp_steps = trainer_def.evaluate(
-        #     test_chronics, MAX_FFW[args.case], output_result_dir + "/no_opp_", mode
-        # )
-        # print("-" * 20 + " PPO D3QN " + "-" * 20)
-        # trainer_ppo_d3qn.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/transfer_", mode)
-        print("-" * 20 + " PPO KAIST" + "-" * 20)
+        trainer_ran = TrainAgent(
+            my_agent, opponent_ran, env, env, device, dn_json_path, dn_ffw, ep_infos, experiment=None
+        )
+        trainer_wro = TrainAgent(
+            my_agent, opponent_wro, env, env, device, dn_json_path, dn_ffw, ep_infos, experiment=None
+        )
+
+        if not os.path.exists(output_result_dir):
+            os.makedirs(output_result_dir)
+        print("-" * 20 + " No Opponent " + "-" * 20)
+        _, tmp_scores, tmp_steps = trainer_def.evaluate(
+            test_chronics, MAX_FFW[args.case], output_result_dir + "/no_opp_", mode
+        )
+        print("-" * 20 + "Our Adversary (FFN/GAT)" + "-" * 20)
         trainer_ppo_kaist.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/ppo_", mode)
-        # print("-" * 20 + " PPO Nanyang" + "-" * 20)
-        # trainer_ppo_nanyang.evaluate(
-        #     test_chronics, MAX_FFW[args.case], output_result_dir + "/ppo_", mode
-        # )
-        # print("-" * 20 + " Random Adversary " + "-" * 20)
-        # trainer_ran.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/ran_", mode)
-        # print("-" * 20 + " Weighted Random Adversary " + "-" * 20)
-        # trainer_wro.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/wro_", mode)
+        print("-" * 20 + " Random Adversary " + "-" * 20)
+        trainer_ran.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/ran_", mode)
+        print("-" * 20 + " Weighted Random Adversary " + "-" * 20)
+        trainer_wro.evaluate(test_chronics, MAX_FFW[args.case], output_result_dir+"/wro_", mode)

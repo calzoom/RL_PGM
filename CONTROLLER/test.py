@@ -78,6 +78,8 @@ MAX_FFW = {"5": 5, "sand": 26, "wcci": 26}
 
 def cli():
     parser = ArgumentParser()
+    parser.add_argument("--load_controller", type=str, default=None)
+    parser.add_argument("--c_suffix", type=str, default="last")
     parser.add_argument("-ckpt", "--checkpoint", type=bool, default=True)
     parser.add_argument("-data", "--datapath", type=str, default="./data")
     parser.add_argument("-out", "--output", type=str, default="./result")
@@ -285,6 +287,9 @@ if __name__ == "__main__":
     mean = torch.load(os.path.join(env_path, "mean.pt"))
     std = torch.load(os.path.join(env_path, "std.pt"))
     my_agent.load_mean_std(mean, std)
+    if args.load_controller:
+        print(f"Loading controller from {args.load_controller}")
+        my_agent.load_model(args.load_controller, name=args.c_suffix)
 
     trainer = TrainAgent(
         my_agent,

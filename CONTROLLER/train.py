@@ -259,6 +259,15 @@ class TrainAgent(object):
                                 "best_score", best_score, step=self.agent.update_step
                             )
 
+                        with open(
+                            os.path.join(output_dir, "scores.out", "a", newline="")
+                        ) as cf:
+                            cf.write(f"{stats['score']}, ")
+                        with open(
+                            os.path.join(output_dir, "steps.out", "a", newline="")
+                        ) as cf:
+                            cf.write(f"{stats['step']}, ")
+                        
                         # log and save model
                         with open(
                             os.path.join(model_path, "score.csv"), "a", newline=""

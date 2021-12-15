@@ -24,4 +24,4 @@
 export PYTHONUNBUFFERED=1
 conda activate maze_smaac
 cd fp
-python AC_JOINT/test.py -n=joint_wcci_run --controller=./result/wcci_run_0/model/ --c_suffix=last -s=0 -c=wcci
+python AC_JOINT/test.py -n=joint_wcci_run_ap200 --controller=./result/wcci_run_0/model/ --c_suffix=last -s=0 -c=wcci -ap=200

@@ -21,6 +21,7 @@ import warnings
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
 from ADVERSARY.ppo.ppo import PPO
+from ADVERSARY.ppo.gat_ppo import GPPO
 from ADVERSARY.ppo.nnpytorch import FFN
 
 ENV_CASE = {
@@ -90,8 +91,10 @@ def cli():
     parser.add_argument("-n", "--name", type=str, default="untitled")
     parser.add_argument("--controller", type=str, default="./result/wcci_run_0/model/")
     parser.add_argument("--c_suffix", type=str, default="last")
-    parser.add_argument("-gpu", "--gpuid", type=int, default=0)
+    parser.add_argument("--adversary_type", type=str, default="FFN", choices=["FFN", "GAT"])
+    parser.add_argument("--adv_name", type=str, default="FFN_k50")
 
+    parser.add_argument("-gpu", "--gpuid", type=int, default=0)
     parser.add_argument("-ml", "--memlen", type=int, default=50000)
     parser.add_argument(
         "-nf",
@@ -374,21 +377,37 @@ if __name__ == "__main__":
     # opponent = RandomOpponent(env.observation_space, env.action_space,
     #                       lines_to_attack=SAND_LINES, attack_period=args.attack_period,
     #                       attack_duration=args.attack_duration)
-    opponent = PPO(
-        experiment=None,
-        env=env,
-        agent=agent,
-        policy_class=FFN,
-        state_mean=state_mean,
-        state_std=state_std,
-        name="ppo",
-        **hyperparameters,
-    )
+    
+    if args.adversary_type == "FFN":
+        opponent = PPO(
+            experiment=None,
+            env=env,
+            agent=agent,
+            policy_class=FFN,
+            state_mean=state_mean,
+            state_std=state_std,
+            name="ppo",     # this doesn't matter
+            **hyperparameters,
+        )
+    elif args.adversary_type == "GAT":
+        opponent = GPPO(
+            experiment=None,
+            env=env,
+            agent=agent,
+            policy_class=None,  # the actor/critic are set in the constructor manually
+            state_mean=state_mean,
+            state_std=state_std,
+            name="gppo",    # this doesn't matter
+            **hyperparameters,
+        )
+    else:
+        print(f"Invalid adversary type: {args.adversary_type}")
+        exit(0)
+
     opponent.actor.load_state_dict(
-        torch.load("./ppo_actor_.pth")
-    )  # ! hard coded for pre-trained adversary
-    # opponent = None
-    print(opponent)
+        torch.load(f"./result/ppo_actor_{args.adv_name}.pth")
+    )
+    
     trainer = TrainAgent(
         agent,
         opponent,
@@ -405,8 +424,7 @@ if __name__ == "__main__":
         os.makedirs(output_result_dir)
         os.makedirs(model_path)
         log_params(args, output_result_dir)
-    # print(args.opp_train_steps)
-    # print(args)
+
     trainer.train(
         args.seed,
         args.nb_frame,
